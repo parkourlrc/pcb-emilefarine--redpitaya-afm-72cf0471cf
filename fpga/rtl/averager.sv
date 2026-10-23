@@ -78,7 +78,9 @@ module averager #(
           // Precision calculation:
           // Output_bits = (DATA_WIDTH + log2(decimation)) - shift
           // Precision_bits = Output_bits - DATA_WIDTH = log2(decimation) - shift
-          bram_in <= current_accumulator >>> shift_amount;
+          // The accumulator does not hold this cycle's sample yet, so it is added here:
+          // the block sum then has exactly decimation_value samples.
+          bram_in <= (current_accumulator + adc_data) >>> shift_amount;
 
           bram_addr <= addr_counter;
           bram_we <= 1;  // Assert write enable
