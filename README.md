@@ -38,6 +38,7 @@ cpp/                 Embedded C++ server + signal processing (build & run on the
 python/              Client library, CLI, GUI (with routing schematic dialog) and deployment
 fpga/
   rtl/               SystemVerilog / VHDL sources for the custom datapath
+  sim/               Testbenches for the custom modules (Vivado simulator)
   bitfiles/          Prebuilt bitstream (flash without rebuilding in Vivado)
 ElectronicBoard/
   src/               LPC1114 firmware for the analog board (MUX + gain control)
@@ -221,6 +222,20 @@ python python/afm_hil_check.py 192.168.1.100
 The script routes board OUT1 <- IN1 at gain x1 and leaves it so. It checks the signal level
 and flatness, linear phase, every decimation, the sinc level, the full 65536-sample depth,
 amplitude linearity (no stale data) and repeatability. Exit code 0 when every check passes.
+
+### 7. FPGA simulation
+
+The custom FPGA modules have testbenches for the Vivado simulator (Vivado 2025.1 in its
+default folder, or the install named by `XILINX_VIVADO`):
+
+```bash
+python fpga/sim/run_sim.py                  # every testbench, exit code 1 on a failure
+python fpga/sim/run_sim.py tb_measure --gui # open the waveforms
+```
+
+`tb_averager` checks the stored averages at every decimation from 16 to 1024. `tb_measure`
+runs complete measurements through the PS bus, as `afm_server` does: BRAM fill, registers,
+START, END, COUNT and read-back, including a full 65536-sample measurement.
 
 ## SCPI protocol
 
