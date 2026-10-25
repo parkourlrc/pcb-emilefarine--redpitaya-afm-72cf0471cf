@@ -508,6 +508,11 @@ module red_pitaya_top #(
   assign data_for_b = '0;  // DAC channel B unused
   assign dac_pwm_o  = '0;  // PWM DAC unused in custom design
 
+  // Digital loopback (hk 0x4000_000C bit 0): the ADC path reads the DAC codes, so a
+  // full-scale signal reaches the ADC rails without any analog overdrive.
+  assign dac_a = data_for_a;
+  assign dac_b = data_for_b;
+
   // Generate a new sample at each cycle
   always @(posedge dac_clk_1x) begin
     // Conversion signed→unsigned Red Pitaya style (bit de signe conservé, bits restants inversés)
