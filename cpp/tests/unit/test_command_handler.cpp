@@ -1375,6 +1375,38 @@ TEST_F(CommandHandlerTest, SweepDetectsSaturation)
   EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=1"), std::string::npos);
 }
 
+TEST_F(CommandHandlerTest, MeasSincReportsFpgaOverrange)
+{
+  initHardware(true);
+  primeSuccessfulMeasurement(1024);
+
+  // Clean averaged samples, but the FPGA saw a raw sample at a rail
+  ON_CALL(*m_rawHw, isAdcOverrange()).WillByDefault(Return(true));
+  EXPECT_EQ(send("MEASURE:SINC 200,100,1024,64,1").compare(0, 3, "OK "), 0);
+  EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=1"), std::string::npos);
+
+  ON_CALL(*m_rawHw, isAdcOverrange()).WillByDefault(Return(false));
+  EXPECT_EQ(send("MEASURE:SINC 200,100,1024,64,1").compare(0, 3, "OK "), 0);
+  EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=0"), std::string::npos);
+}
+
+TEST_F(CommandHandlerTest, SweepReportsFpgaOverrangeOfAnyPoint)
+{
+  initHardware(true);
+  primeSuccessfulMeasurement(8192);
+
+  // The flag is read after each point; only the middle one clipped
+  EXPECT_CALL(*m_rawHw, isAdcOverrange())
+      .WillOnce(Return(false))
+      .WillOnce(Return(true))
+      .WillOnce(Return(false));
+
+  std::string resp = send("MEASURE:SWEEP 200,2,1");
+  EXPECT_EQ(resp.compare(0, 3, "OK "), 0) << resp;
+  EXPECT_EQ(parseSpectrum(resp).size(), 3u);
+  EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=1"), std::string::npos);
+}
+
 TEST_F(CommandHandlerTest, BoardResetClearsOverdriveWarning)
 {
   initHardware(true);

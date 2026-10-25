@@ -7,14 +7,13 @@
 /**
  * @brief Detects ADC saturation in acquired (volt-scaled) samples
  *
- * The custom FPGA datapath exposes no overrange flag, so saturation is
- * detected statistically: samples pinned at the input full scale indicate a
- * clipped acquisition. This catches real overrange even when the predicted
- * worst case (InputSafety) was optimistic.
+ * Samples pinned at the input full scale indicate a clipped acquisition. This
+ * catches real overrange even when the predicted worst case (InputSafety) was
+ * optimistic.
  *
- * Limit: the samples come after the FPGA averager, so clipping of a signal above
- * about a third of the decimated Nyquist frequency is averaged away. A latched
- * overrange flag in the FPGA (STATUS bit 2 is free) would fix that.
+ * The samples come after the FPGA averager, so clipping of a fast signal can be
+ * averaged away; the FPGA overrange flag (IRedPitayaHardware::isAdcOverrange),
+ * which sees every raw sample, covers that case.
  */
 namespace SaturationDetector
 {

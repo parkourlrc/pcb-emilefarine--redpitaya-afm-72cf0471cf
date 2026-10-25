@@ -745,7 +745,7 @@ std::string CommandHandler::_handleMeasSinc(const ParsedCommand& cmd)
   }
 
   SaturationDetector::Report saturation = SaturationDetector::analyze(acquired);
-  m_status.adcSaturated = saturation.saturated;
+  m_status.adcSaturated = saturation.saturated || m_hardware->isAdcOverrange();
   m_status.adcSaturationRatio = saturation.saturatedRatio;
 
   // Compute FFT
@@ -931,7 +931,7 @@ std::string CommandHandler::_handleMeasSweep(const ParsedCommand& cmd)
     }
 
     SaturationDetector::Report saturation = SaturationDetector::analyze(acquired);
-    if (saturation.saturated)
+    if (saturation.saturated || m_hardware->isAdcOverrange())
     {
       m_status.adcSaturated = true;
     }
