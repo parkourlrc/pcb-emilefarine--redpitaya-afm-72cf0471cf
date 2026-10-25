@@ -69,7 +69,7 @@ module measure_reg (
       4'd4:    rdata = sig_size_reg;
       4'd5:    rdata = {31'd0, end_measure};  // status from measure_ctrl
       4'd6:    rdata = count_measure;  // 32-bit counter from measure_ctrl
-      4'd7:    rdata = 32'h15062026;  // BUILD_DATE register (read-only, DDMMYYYY format)
+      4'd7:    rdata = 32'h25102026;  // BUILD_DATE register (read-only, DDMMYYYY format)
       4'd8:    rdata = {21'd0, decimation_reg};  // decimation factor (read-back)
       4'd9:    rdata = {29'd0, overrange_i, ps_access_denied_d1, busy_i};  // STATUS: [0]=busy, [1]=ps_access_denied, [2]=overrange
       default: rdata = 32'h0;
