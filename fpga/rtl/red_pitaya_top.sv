@@ -678,6 +678,7 @@ module red_pitaya_top #(
   logic                            end_measure_sig;
   logic [                    31:0] count_measure_sig;
   logic                            measure_busy_sig;
+  logic                            overrange_sig;
 
   ps_pl_interface_wrapper #(
       .GEN_BRAM_ADDR_WIDTH(GEN_BRAM_ADDR_WIDTH),
@@ -712,7 +713,8 @@ module red_pitaya_top #(
       .decimation_o   (decimation_reg_sig),
       .busy_i         (measure_busy_sig),
       .end_measure_i  (end_measure_sig),
-      .count_measure_i(count_measure_sig)
+      .count_measure_i(count_measure_sig),
+      .overrange_i    (overrange_sig)
   );
 
 
@@ -738,6 +740,7 @@ module red_pitaya_top #(
       .decimation_reg(decimation_reg_sig),  // from ps_pl_interface
       .end_measure   (end_measure_sig),     // to ps_pl_interface
       .count_measure (count_measure_sig),   // to ps_pl_interface
+      .overrange_o   (overrange_sig),       // to ps_pl_interface STATUS bit 2
       .busy_o        (measure_busy_sig),    // to ps_pl_interface busy arbitration
 
       // Connect logic to generation BRAM in ps_pl_interface

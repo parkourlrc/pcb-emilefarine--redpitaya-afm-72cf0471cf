@@ -21,6 +21,7 @@ module tb_measure;
   localparam int REG_DECIMATION = 8;
   localparam int REG_STATUS = 9;
   localparam logic [31:0] MARKER = 32'h1F00;  // above every pattern value
+  localparam int QUIET = 100;  // ADC code between overrange pulses
 
   logic clk = 1'b0;
   logic rstn = 1'b0;
@@ -49,6 +50,7 @@ module tb_measure;
   logic end_measure;
   logic [31:0] count_measure;
   logic busy;
+  logic overrange;
 
   logic signed [DATA_W-1:0] adc_data = '0;
   logic signed [DATA_W-1:0] dac_data;
@@ -81,7 +83,8 @@ module tb_measure;
       .decimation_o   (decimation),
       .busy_i         (busy),
       .end_measure_i  (end_measure),
-      .count_measure_i(count_measure)
+      .count_measure_i(count_measure),
+      .overrange_i    (overrange)
   );
 
   measure_ctrl #(
@@ -98,6 +101,7 @@ module tb_measure;
       .decimation_reg(decimation),
       .end_measure   (end_measure),
       .count_measure (count_measure),
+      .overrange_o   (overrange),
       .busy_o        (busy),
       .adc_data      (adc_data),
       .gen_out       (dac_data),
@@ -178,10 +182,21 @@ module tb_measure;
     return (n <= 1024) || (i < 64) || (i >= n - 64);
   endfunction
 
+  task automatic wait_end(input string label);
+    logic [31:0] value;
+    int polls = 0;
+    do begin
+      repeat (64) @(negedge clk);
+      reg_read(REG_END, value);
+      polls++;
+    end while (value != 32'd1 && polls < 1_000_000);
+    check(value == 32'd1, {label, ": END never rose"});
+  endtask
+
   task automatic measure(input int n, input int dec, input int dly, input int code);
     string label = $sformatf("N %0d dec %0d delay %0d code %0d", n, dec, dly, code);
+    bit at_rail = (code == 8191) || (code == -8192);
     logic [31:0] value;
-    int polls;
 
     $display("--- %s", label);
     for (int i = 0; i < n; i++) bus_write(BRAM_BASE + 32'(i * 4), 32'(pattern(i)));
@@ -197,16 +212,12 @@ module tb_measure;
     reg_write(REG_SIG_SIZE, 32'(n));
     reg_write(REG_START, 32'd1);
 
-    polls = 0;
-    do begin
-      repeat (64) @(negedge clk);
-      reg_read(REG_END, value);
-      polls++;
-    end while (value != 32'd1 && polls < 1_000_000);
-    check(value == 32'd1, {label, ": END never rose"});
+    wait_end(label);
 
     reg_read(REG_STATUS, value);
     check(value[0] == 1'b0, {label, ": still busy after END"});
+    check(value[2] == at_rail, $sformatf("%s: overrange reads %0d, expected %0d", label,
+                                         value[2], at_rail));
 
     reg_read(REG_COUNT, value);
     check(value == 32'(n), $sformatf("%s: COUNT reads %0d after END, expected %0d", label,
@@ -260,6 +271,60 @@ module tb_measure;
     adc_data = '0;
   endtask
 
+  task automatic pulse_adc(input int code);
+    @(negedge clk);
+    adc_data = 14'(code);
+    @(negedge clk);
+    adc_data = 14'(QUIET);
+  endtask
+
+  // One sample at `code` on a quiet input, inside the acquisition window, during the
+  // delay before it, or after END. The flag must follow the window, survive a STATUS
+  // write and START=0, and be cleared by the next START (checked at the start of each case).
+  task automatic overrange_case(input string where, input int code, input bit expected);
+    string label = $sformatf("overrange code %0d %s", code, where);
+    logic [31:0] value;
+
+    $display("--- %s", label);
+    adc_data = 14'(QUIET);
+    reg_write(REG_DECIMATION, 32'd16);
+    reg_write(REG_DELAY, 32'd4);
+    reg_write(REG_SIG_SIZE, 32'd64);
+    reg_write(REG_START, 32'd1);
+
+    reg_read(REG_STATUS, value);
+    check(value[2] == 1'b0, {label, ": START did not clear overrange"});
+
+    if (where == "inside") begin
+      @(posedge ctrl.acq_enabled);
+      repeat (10) @(negedge clk);
+      pulse_adc(code);
+    end else if (where == "delay") begin
+      check(busy && !ctrl.acq_enabled, {label, ": pulse not in the delay"});
+      pulse_adc(code);
+    end
+
+    wait_end(label);
+    if (where == "after") begin
+      check(!ctrl.acq_enabled, {label, ": acquisition still enabled after END"});
+      pulse_adc(code);
+    end
+
+    reg_read(REG_STATUS, value);
+    check(value[2] == expected, $sformatf("%s: overrange reads %0d after END, expected %0d",
+                                          label, value[2], expected));
+    reg_write(REG_STATUS, 32'd0);
+    reg_read(REG_STATUS, value);
+    check(value[2] == expected, $sformatf("%s: overrange reads %0d after a STATUS write",
+                                          label, value[2]));
+    reg_write(REG_START, 32'd0);
+    repeat (4) @(negedge clk);
+    reg_read(REG_STATUS, value);
+    check(value[2] == expected, $sformatf("%s: overrange reads %0d after START=0", label,
+                                          value[2]));
+    adc_data = '0;
+  endtask
+
   initial begin
     repeat (4) @(negedge clk);
     rstn = 1'b1;
@@ -268,7 +333,17 @@ module tb_measure;
     measure(64, 16, 1, 2000);
     measure(64, 64, 3, -3000);
     measure(200, 1024, 1, 8191);
+    measure(64, 16, 1, -8192);
     measure(DEPTH, 16, 1, 1000);
+
+    overrange_case("inside", 8191, 1'b1);
+    overrange_case("inside", -8192, 1'b1);
+    overrange_case("inside", 8190, 1'b0);
+    overrange_case("inside", -8191, 1'b0);
+    overrange_case("inside", 8191, 1'b1);
+    overrange_case("delay", 8191, 1'b0);
+    overrange_case("inside", -8192, 1'b1);
+    overrange_case("after", -8192, 1'b0);
 
     $display("%0d checks, %0d failed", checks, errors);
     if (errors == 0) $display("RESULT: PASS");

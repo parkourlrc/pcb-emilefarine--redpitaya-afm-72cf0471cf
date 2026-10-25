@@ -17,6 +17,7 @@ module measure_ctrl #(
     input  logic [10:0] decimation_reg,  // Runtime decimation value from AXI register
     output logic        end_measure,
     output logic [31:0] count_measure,   // BRAM writes of the last measurement
+    output logic        overrange_o,     // raw ADC reached a rail during the last acquisition
     output logic        busy_o,
 
     // Interface ADC
@@ -101,6 +102,19 @@ module measure_ctrl #(
   end
 
   assign count_measure = 32'(write_count);
+
+  // Overrange: a raw ADC code at a rail (+8191 or -8192 for 14 bits) while samples are
+  // being averaged. Sticky so the PS sees it after END, cleared only by the next START
+  // (the server writes STATUS before reading the BRAM, so a STATUS write must not clear it).
+  localparam logic signed [DATA_WIDTH-1:0] ADC_MAX = {1'b0, {(DATA_WIDTH - 1) {1'b1}}};
+  localparam logic signed [DATA_WIDTH-1:0] ADC_MIN = {1'b1, {(DATA_WIDTH - 1) {1'b0}}};
+
+  always_ff @(posedge clk or negedge rstn) begin
+    if (!rstn) overrange_o <= 1'b0;
+    else if (state == IDLE && start_measure) overrange_o <= 1'b0;
+    else if (acq_enabled && (adc_data == ADC_MAX || adc_data == ADC_MIN)) overrange_o <= 1'b1;
+  end
+
   assign busy_o = (state == RUNNING);
 
   // Single-BRAM mode safety: never allow zero-sample delay.

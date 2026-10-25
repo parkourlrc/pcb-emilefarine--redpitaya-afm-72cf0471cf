@@ -21,6 +21,7 @@ module measure_reg (
     input logic        end_measure,   // set to 1 when measure ended (raises IRQ)
     input logic [31:0] count_measure, // count how many samples have been acquired    
     input logic        busy_i,        // high when measure_ctrl FSM is RUNNING
+    input logic        overrange_i,   // sticky in measure_ctrl, cleared by the next START
     input logic        ps_access_denied_i  // high when PS tried to access BRAM during busy
 );
 
@@ -70,7 +71,7 @@ module measure_reg (
       4'd6:    rdata = count_measure;  // 32-bit counter from measure_ctrl
       4'd7:    rdata = 32'h15062026;  // BUILD_DATE register (read-only, DDMMYYYY format)
       4'd8:    rdata = {21'd0, decimation_reg};  // decimation factor (read-back)
-      4'd9:    rdata = {29'd0, 1'b0, ps_access_denied_d1, busy_i};  // STATUS: [0]=busy, [1]=ps_access_denied, [2]=rw_collision(reserved)
+      4'd9:    rdata = {29'd0, overrange_i, ps_access_denied_d1, busy_i};  // STATUS: [0]=busy, [1]=ps_access_denied, [2]=overrange
       default: rdata = 32'h0;
     endcase
   end

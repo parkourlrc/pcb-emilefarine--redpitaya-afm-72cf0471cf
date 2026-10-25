@@ -38,7 +38,8 @@ module ps_pl_interface_wrapper #(
     output [10:0] decimation_o,    // decimation factor (16-1024)
     input         busy_i,          // high while measure_ctrl FSM is RUNNING
     input         end_measure_i,
-    input  [31:0] count_measure_i
+    input  [31:0] count_measure_i,
+    input         overrange_i      // STATUS bit[2]
 );
 
 
@@ -90,6 +91,7 @@ module ps_pl_interface_wrapper #(
       .end_measure(end_measure_i),
       .count_measure(count_measure_i),
       .busy_i(busy_i),                          // STATUS bit[0]: FSM in RUNNING state
+      .overrange_i(overrange_i),                // STATUS bit[2]: ADC at a rail during acquisition
       .ps_access_denied_i(sel_shared_bram & (sys_wen_i | sys_ren_i) & busy_i)  // STATUS bit[1]: PS tried BRAM access during busy
   );
 
