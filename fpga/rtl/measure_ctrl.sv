@@ -16,7 +16,7 @@ module measure_ctrl #(
     input  logic [31:0] delay,           // delay between gen and acq
     input  logic [10:0] decimation_reg,  // Runtime decimation value from AXI register
     output logic        end_measure,
-    output logic [31:0] count_measure,   // Now directly from averager
+    output logic [31:0] count_measure,   // BRAM writes of the last measurement
     output logic        busy_o,
 
     // Interface ADC
@@ -51,8 +51,8 @@ module measure_ctrl #(
   logic                  acq_enabled;
   logic                  gen_enabled;
 
-  // Internal signal for averaged sample count from averager
-  logic [ADDR_WIDTH-1:0] averaged_samples_from_averager;
+  // One bit wider than the address so a full BRAM (2^ADDR_WIDTH writes) does not wrap
+  logic [  ADDR_WIDTH:0] write_count;
 
 
   // === Generation (starts at RUNNING) ===
@@ -89,11 +89,18 @@ module measure_ctrl #(
       .bram_addr            (bram_in_addr),
       .bram_in              (bram_in_data),
       .bram_we              (bram_we),
-      .averaged_sample_count(averaged_samples_from_averager)
+      .averaged_sample_count()
   );
 
-  // Connect the averaged sample count to the output port
-  assign count_measure = averaged_samples_from_averager;
+  // The averager clears its own count when acquisition stops, so COUNT has its own
+  // counter: cleared when a measurement starts, held until the next one.
+  always_ff @(posedge clk or negedge rstn) begin
+    if (!rstn) write_count <= '0;
+    else if (state == IDLE && start_measure) write_count <= '0;
+    else if (bram_we) write_count <= write_count + 1'b1;
+  end
+
+  assign count_measure = 32'(write_count);
   assign busy_o = (state == RUNNING);
 
   // Single-BRAM mode safety: never allow zero-sample delay.

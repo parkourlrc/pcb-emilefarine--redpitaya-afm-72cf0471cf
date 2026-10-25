@@ -254,6 +254,9 @@ module tb_measure;
     repeat (4) @(negedge clk);
     reg_read(REG_END, value);
     check(value == 32'd0, {label, ": END still set after START=0"});
+    reg_read(REG_COUNT, value);
+    check(value == 32'(n), $sformatf("%s: COUNT reads %0d after START=0, expected %0d", label,
+                                     value, n));
     adc_data = '0;
   endtask
 
