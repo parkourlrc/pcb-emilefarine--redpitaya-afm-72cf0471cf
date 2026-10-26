@@ -32,7 +32,7 @@ few milliseconds, and a **lock-in sweep** that resolves narrow resonances.
 cpp/                 Embedded C++ server + signal processing (build & run on the Red Pitaya)
   Hardware/          Hardware abstraction: FPGA register access, board UART, SSD1306 OLED
   Server/            TCP server, SCPI command handler, protocol
-  SignalProcessing/  Signal generation, FFT (FFTW3), ADC saturation check
+  SignalProcessing/  Signal generation, FFT (FFTW3), sine fit
   Tools/             oled-ip helper + systemd service
   tests/             Host-side unit tests (run on the dev PC, no Red Pitaya needed)
 python/              Client library, CLI, GUI (with routing schematic dialog) and deployment
@@ -210,8 +210,8 @@ Before each measurement the server predicts the peak at the ADC:
 
 The prediction is only as good as the declared sample gain and assumes a +/-1 V output
 (`DAC_FULL_SCALE` in `cpp/Hardware/InputSafety.h`). `SAT=` reports real clipping in the last
-acquisition: the FPGA flags any raw ADC sample at a rail, before the averaging, and the
-server also checks the averaged samples. RP-only mode has no monitor.
+acquisition: the FPGA flags any raw ADC sample at a rail, before the averaging. RP-only
+mode has no monitor.
 
 ### 6. Hardware loopback check
 

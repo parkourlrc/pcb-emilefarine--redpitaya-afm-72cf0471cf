@@ -357,7 +357,6 @@ std::string CommandHandler::_handleSystDeinit(const ParsedCommand& cmd)
   m_status.boardConnected = false;
   m_status.adcOverdrive = false;
   m_status.adcSaturated = false;
-  m_status.adcSaturationRatio = 0.0f;
 
   return buildOkResponse("Hardware deinitialized");
 }
@@ -744,9 +743,7 @@ std::string CommandHandler::_handleMeasSinc(const ParsedCommand& cmd)
     return buildErrorResponse(ResponseStatus::ERR_HARDWARE, "Failed to read acquired data");
   }
 
-  SaturationDetector::Report saturation = SaturationDetector::analyze(acquired);
-  m_status.adcSaturated = saturation.saturated || m_hardware->isAdcOverrange();
-  m_status.adcSaturationRatio = saturation.saturatedRatio;
+  m_status.adcSaturated = m_hardware->isAdcOverrange();
 
   // Compute FFT
   m_fftProcessor->applyWindow(acquired);
@@ -930,13 +927,10 @@ std::string CommandHandler::_handleMeasSweep(const ParsedCommand& cmd)
                                 "Failed to read data at " + std::to_string(freqKHz) + " kHz");
     }
 
-    SaturationDetector::Report saturation = SaturationDetector::analyze(acquired);
-    if (saturation.saturated || m_hardware->isAdcOverrange())
+    if (m_hardware->isAdcOverrange())
     {
       m_status.adcSaturated = true;
     }
-    m_status.adcSaturationRatio =
-        std::max(m_status.adcSaturationRatio, saturation.saturatedRatio);
 
     // The last `delay` samples come after the excitation ended
     const double omega = 2.0 * c_Pi * freqHz / samplingFreq;
@@ -1086,7 +1080,6 @@ void CommandHandler::_trackExcitationAmplitude(float amplitude)
   // stay unchanged for byte-count based clients.
   m_lastExcitationAmplitude = amplitude;
   m_status.adcSaturated = false;
-  m_status.adcSaturationRatio = 0.0f;
 }
 
 double CommandHandler::_applyDecimation(uint16_t dec, std::string& errorResponse)

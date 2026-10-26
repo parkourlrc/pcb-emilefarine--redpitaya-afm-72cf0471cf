@@ -4,7 +4,6 @@
 #include "../Hardware/InputSafety.h"
 #include "../Hardware/IRedPitayaHardware.h"
 #include "../SignalProcessing/FFTProcessor.h"
-#include "../SignalProcessing/SaturationDetector.h"
 #include "../SignalProcessing/SignalGenerator.h"
 #include "HardwareFactories.h"
 #include "Protocol.h"
@@ -39,8 +38,7 @@ struct SystemStatus
   bool adcProtectEnabled;       ///< Refuse MEASURE predicted to overdrive
   float adcSampleGain;          ///< Expected return / excitation ratio of the AFM
   bool adcOverdrive;            ///< Estimate exceeds ADC full scale
-  bool adcSaturated;            ///< Saturation detected in the last acquisition
-  float adcSaturationRatio;     ///< Fraction of saturated samples (last acquisition)
+  bool adcSaturated;            ///< FPGA overrange flag of the last acquisition
 
   SystemStatus()
       : hardwareInitialized(false)
@@ -55,7 +53,6 @@ struct SystemStatus
       , adcSampleGain(1.0f)
       , adcOverdrive(false)
       , adcSaturated(false)
-      , adcSaturationRatio(0.0f)
   {
   }
 };
