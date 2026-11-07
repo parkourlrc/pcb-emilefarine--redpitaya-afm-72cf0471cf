@@ -15,5 +15,6 @@ public:
   MOCK_METHOD(bool, startMeasurement, (uint32_t, uint32_t), (override));
   MOCK_METHOD(bool, isMeasurementComplete, (), (override));
   MOCK_METHOD(bool, getAcquiredSignal, (std::vector<float>&), (override));
+  MOCK_METHOD(bool, isAdcOverrange, (), (override));
   MOCK_METHOD(bool, resetMeasurement, (), (override));
 };

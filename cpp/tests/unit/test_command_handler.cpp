@@ -1059,11 +1059,8 @@ TEST_F(CommandHandlerTest, RejectedMeasurementKeepsSaturationEvidence)
   initHardware(true);
   primeSuccessfulMeasurement(1024);
 
-  ON_CALL(*m_rawHw, getAcquiredSignal(_))
-      .WillByDefault(WithArg<0>(Invoke([](std::vector<float>& s) {
-        s.assign(1024, 1.0f);
-        return true;
-      })));
+  // Only the first acquisition clipped
+  EXPECT_CALL(*m_rawHw, isAdcOverrange()).WillOnce(Return(true)).WillRepeatedly(Return(false));
   EXPECT_EQ(send("MEASURE:SINC 200,100,1024,64,1").compare(0, 3, "OK "), 0);
   EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=1"), std::string::npos);
 
@@ -1339,16 +1336,12 @@ TEST_F(CommandHandlerTest, MeasSincUpdatesOverdriveFromAmplitude)
   EXPECT_NE(send("SYSTEM:STATUS?").find("OVERDRIVE=1"), std::string::npos);
 }
 
-TEST_F(CommandHandlerTest, MeasSincDetectsSaturation)
+TEST_F(CommandHandlerTest, SaturationComesOnlyFromTheFpgaFlag)
 {
   initHardware(true);
   primeSuccessfulMeasurement(1024);
 
-  EXPECT_EQ(send("MEASURE:SINC 200,100,1024,64,1").compare(0, 3, "OK "), 0);
-  EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=0"), std::string::npos);
-  EXPECT_EQ(send("SYSTEM:STATUS?").find("SAT=1"), std::string::npos);
-
-  // Acquisition pinned at full scale must be flagged
+  // Averaged samples at full scale without the FPGA flag are a valid signal
   ON_CALL(*m_rawHw, getAcquiredSignal(_))
       .WillByDefault(WithArg<0>(Invoke([](std::vector<float>& s) {
         s.assign(1024, 1.0f);
@@ -1356,22 +1349,38 @@ TEST_F(CommandHandlerTest, MeasSincDetectsSaturation)
       })));
 
   EXPECT_EQ(send("MEASURE:SINC 200,100,1024,64,1").compare(0, 3, "OK "), 0);
-  EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=1"), std::string::npos);
+  EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=0"), std::string::npos);
 }
 
-TEST_F(CommandHandlerTest, SweepDetectsSaturation)
+TEST_F(CommandHandlerTest, MeasSincReportsFpgaOverrange)
+{
+  initHardware(true);
+  primeSuccessfulMeasurement(1024);
+
+  // Clean averaged samples, but the FPGA saw a raw sample at a rail
+  ON_CALL(*m_rawHw, isAdcOverrange()).WillByDefault(Return(true));
+  EXPECT_EQ(send("MEASURE:SINC 200,100,1024,64,1").compare(0, 3, "OK "), 0);
+  EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=1"), std::string::npos);
+
+  ON_CALL(*m_rawHw, isAdcOverrange()).WillByDefault(Return(false));
+  EXPECT_EQ(send("MEASURE:SINC 200,100,1024,64,1").compare(0, 3, "OK "), 0);
+  EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=0"), std::string::npos);
+}
+
+TEST_F(CommandHandlerTest, SweepReportsFpgaOverrangeOfAnyPoint)
 {
   initHardware(true);
   primeSuccessfulMeasurement(8192);
 
-  ON_CALL(*m_rawHw, getAcquiredSignal(_))
-      .WillByDefault(WithArg<0>(Invoke([](std::vector<float>& s) {
-        s.assign(8192, -1.0f);
-        return true;
-      })));
+  // The flag is read after each point; only the middle one clipped
+  EXPECT_CALL(*m_rawHw, isAdcOverrange())
+      .WillOnce(Return(false))
+      .WillOnce(Return(true))
+      .WillOnce(Return(false));
 
-  std::string resp = send("MEASURE:SWEEP 200,1,1");
+  std::string resp = send("MEASURE:SWEEP 200,2,1");
   EXPECT_EQ(resp.compare(0, 3, "OK "), 0) << resp;
+  EXPECT_EQ(parseSpectrum(resp).size(), 3u);
   EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=1"), std::string::npos);
 }
 
@@ -1893,11 +1902,8 @@ TEST_F(CommandHandlerTest, RefusedMeasurementKeepsSaturationEvidence)
   primeSuccessfulMeasurement(1024);
   allowBoardCommands();
 
-  ON_CALL(*m_rawHw, getAcquiredSignal(_))
-      .WillByDefault(WithArg<0>(Invoke([](std::vector<float>& s) {
-        s.assign(1024, 1.0f);
-        return true;
-      })));
+  // Only the first acquisition clipped
+  EXPECT_CALL(*m_rawHw, isAdcOverrange()).WillOnce(Return(true)).WillRepeatedly(Return(false));
   EXPECT_EQ(send("MEASURE:SINC 200,100,1024,64,1").compare(0, 3, "OK "), 0);
   EXPECT_NE(send("SYSTEM:STATUS?").find("SAT=1"), std::string::npos);
 

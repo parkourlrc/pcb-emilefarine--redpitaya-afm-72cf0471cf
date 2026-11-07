@@ -46,11 +46,11 @@ bool RedPitayaHardware::initialize()
     return false;
   }
 
-  if (_readVersion() != 0x15062026) // Date of correct bitfile (VERSION in fpga register)
+  if (_readVersion() != FPGA_VERSION)
   {
     std::cerr << "Error: Incorrect FPGA bitfile loaded!" << std::endl;
-    std::cerr << "       VERSION register = 0x" << std::hex << _readVersion() << std::dec
-              << std::endl;
+    std::cerr << "       VERSION register = 0x" << std::hex << _readVersion() << ", expected 0x"
+              << FPGA_VERSION << std::dec << std::endl;
     cleanup();
     return false;
   }
@@ -227,6 +227,14 @@ bool RedPitayaHardware::getAcquiredSignal(std::vector<float>& signal)
     return false;
   }
 
+  const uint32_t acquiredCount = m_regs[REG_COUNT_MEASURE];
+  if (acquiredCount < signal.size())
+  {
+    std::cerr << "Error: Only " << acquiredCount << " of " << signal.size()
+              << " samples acquired; the rest is stale data" << std::endl;
+    return false;
+  }
+
   // Clear stale sticky flags so denials caused by this transfer are visible.
   _clearStatus();
 
@@ -243,6 +251,11 @@ bool RedPitayaHardware::getAcquiredSignal(std::vector<float>& signal)
   }
 
   return true;
+}
+
+bool RedPitayaHardware::isAdcOverrange()
+{
+  return _isMapped() && (_readStatus() & STATUS_OVERRANGE_BIT) != 0;
 }
 
 bool RedPitayaHardware::resetMeasurement()

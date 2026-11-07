@@ -30,6 +30,8 @@ public:
   virtual bool startMeasurement(uint32_t numSamples, uint32_t delaySamples = 0) = 0;
   virtual bool isMeasurementComplete() = 0;
   virtual bool getAcquiredSignal(std::vector<float>& signal) = 0;
+  // A raw ADC sample reached a rail during the last acquisition (FPGA flag)
+  virtual bool isAdcOverrange() = 0;
 
   virtual bool resetMeasurement() = 0;
 

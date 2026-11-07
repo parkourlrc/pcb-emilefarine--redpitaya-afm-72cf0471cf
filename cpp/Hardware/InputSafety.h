@@ -11,8 +11,8 @@
  * full scale itself is the limit. The board can output about +/-10.5 V.
  *
  * The estimate is nominal: the AFM is assumed to return the excitation
- * scaled by the declared sample gain (default 1). SaturationDetector reports
- * what actually clipped.
+ * scaled by the declared sample gain (default 1). The FPGA overrange flag (SAT)
+ * reports what actually clipped.
  */
 namespace InputSafety
 {

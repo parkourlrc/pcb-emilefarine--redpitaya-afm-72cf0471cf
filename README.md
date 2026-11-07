@@ -32,12 +32,13 @@ few milliseconds, and a **lock-in sweep** that resolves narrow resonances.
 cpp/                 Embedded C++ server + signal processing (build & run on the Red Pitaya)
   Hardware/          Hardware abstraction: FPGA register access, board UART, SSD1306 OLED
   Server/            TCP server, SCPI command handler, protocol
-  SignalProcessing/  Signal generation, FFT (FFTW3), ADC saturation check
+  SignalProcessing/  Signal generation, FFT (FFTW3), sine fit
   Tools/             oled-ip helper + systemd service
   tests/             Host-side unit tests (run on the dev PC, no Red Pitaya needed)
 python/              Client library, CLI, GUI (with routing schematic dialog) and deployment
 fpga/
   rtl/               SystemVerilog / VHDL sources for the custom datapath
+  sim/               Testbenches for the custom modules (Vivado simulator)
   bitfiles/          Prebuilt bitstream (flash without rebuilding in Vivado)
 ElectronicBoard/
   src/               LPC1114 firmware for the analog board (MUX + gain control)
@@ -93,6 +94,10 @@ By default the newest `fpga/bitfiles/*.bit.bin` is used; pass `--bitfile <path>`
 another. A raw `.bit` (from a local Vivado build) is converted automatically with `bootgen`
 (point to it with `--bootgen` / the `BOOTGEN` env var, or let the script scan a local Vitis
 install).
+
+The server reads the FPGA VERSION register and refuses any other bitstream than the one in
+`fpga/bitfiles/`. The previous bitstream (`0x15062026`) and its server are kept under the git
+tag and GitHub release `fpga-15062026`.
 
 ### 2. Build and deploy the C++ server
 
@@ -204,9 +209,9 @@ Before each measurement the server predicts the peak at the ADC:
   "ADC Input" in the GUI.
 
 The prediction is only as good as the declared sample gain and assumes a +/-1 V output
-(`DAC_FULL_SCALE` in `cpp/Hardware/InputSafety.h`). `SAT=` reports real clipping, seen in
-the samples after the FPGA averaging: clipping of a signal above about a third of the
-decimated Nyquist frequency can go unseen. RP-only mode has no monitor.
+(`DAC_FULL_SCALE` in `cpp/Hardware/InputSafety.h`). `SAT=` reports real clipping in the last
+acquisition: the FPGA flags any raw ADC sample at a rail, before the averaging. RP-only
+mode has no monitor.
 
 ### 6. Hardware loopback check
 
@@ -221,6 +226,21 @@ python python/afm_hil_check.py 192.168.1.100
 The script routes board OUT1 <- IN1 at gain x1 and leaves it so. It checks the signal level
 and flatness, linear phase, every decimation, the sinc level, the full 65536-sample depth,
 amplitude linearity (no stale data) and repeatability. Exit code 0 when every check passes.
+
+### 7. FPGA simulation
+
+The custom FPGA modules have testbenches for the Vivado simulator (Vivado 2025.1 in its
+default folder, or the install named by `XILINX_VIVADO`):
+
+```bash
+python fpga/sim/run_sim.py                  # every testbench, exit code 1 on a failure
+python fpga/sim/run_sim.py tb_measure --gui # open the waveforms
+```
+
+`tb_averager` checks the stored averages at every decimation from 16 to 1024. `tb_measure`
+runs complete measurements through the PS bus, as `afm_server` does: BRAM fill, registers,
+START, END, COUNT and read-back, including a full 65536-sample measurement, and the overrange
+flag (STATUS bit 2) inside and outside the acquisition window.
 
 ## SCPI protocol
 

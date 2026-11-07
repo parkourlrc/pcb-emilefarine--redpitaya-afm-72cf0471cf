@@ -508,6 +508,11 @@ module red_pitaya_top #(
   assign data_for_b = '0;  // DAC channel B unused
   assign dac_pwm_o  = '0;  // PWM DAC unused in custom design
 
+  // Digital loopback (hk 0x4000_000C bit 0): the ADC path reads the DAC codes, so a
+  // full-scale signal reaches the ADC rails without any analog overdrive.
+  assign dac_a = data_for_a;
+  assign dac_b = data_for_b;
+
   // Generate a new sample at each cycle
   always @(posedge dac_clk_1x) begin
     // Conversion signed→unsigned Red Pitaya style (bit de signe conservé, bits restants inversés)
@@ -678,6 +683,7 @@ module red_pitaya_top #(
   logic                            end_measure_sig;
   logic [                    31:0] count_measure_sig;
   logic                            measure_busy_sig;
+  logic                            overrange_sig;
 
   ps_pl_interface_wrapper #(
       .GEN_BRAM_ADDR_WIDTH(GEN_BRAM_ADDR_WIDTH),
@@ -712,7 +718,8 @@ module red_pitaya_top #(
       .decimation_o   (decimation_reg_sig),
       .busy_i         (measure_busy_sig),
       .end_measure_i  (end_measure_sig),
-      .count_measure_i(count_measure_sig)
+      .count_measure_i(count_measure_sig),
+      .overrange_i    (overrange_sig)
   );
 
 
@@ -738,6 +745,7 @@ module red_pitaya_top #(
       .decimation_reg(decimation_reg_sig),  // from ps_pl_interface
       .end_measure   (end_measure_sig),     // to ps_pl_interface
       .count_measure (count_measure_sig),   // to ps_pl_interface
+      .overrange_o   (overrange_sig),       // to ps_pl_interface STATUS bit 2
       .busy_o        (measure_busy_sig),    // to ps_pl_interface busy arbitration
 
       // Connect logic to generation BRAM in ps_pl_interface

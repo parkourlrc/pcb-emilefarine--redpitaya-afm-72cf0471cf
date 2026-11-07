@@ -18,6 +18,9 @@ _autosave-*
 *.kicad_prl
 .history/
 
+# FPGA simulation work folder
+fpga/sim/out/
+
 # Editor / OS
 .vscode/
 .idea/
